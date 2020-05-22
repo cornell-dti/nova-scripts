@@ -21,10 +21,10 @@ const csv = require("csvtojson");
 
 const csvFilePath = process.argv[2];
 
-function fromEntries(iterable) {
+function fromEntries(iterable: readonly ([string, any] | [[string, unknown], [string, unknown]])[]) {
   return [...iterable].reduce(
     (obj, n) => {
-      const { 0: key, 1: val } = n;
+      const [key, val] = n;
 
       if (typeof key !== 'string') {
         return Object.assign(obj, fromEntries(n));
@@ -36,11 +36,7 @@ function fromEntries(iterable) {
   );
 }
 
-/**
- * @param {string} input
- * @returns {string}
- */
-function transformSubteams(input) {
+function transformSubteams(input: string): string {
   const lowercasedInput = input.toLowerCase();
   if (lowercasedInput.includes('carriage')) {
     return 'carriage';
@@ -75,9 +71,9 @@ function transformSubteams(input) {
 
 csv()
   .fromFile(csvFilePath)
-  .then(jsonObj => {
+  .then((jsonObj: readonly { readonly [key: string]: string }[]) => {
     const formatted = jsonObj.map(obj => {
-      const fns = [
+      const fns: ((keyValuePair: [string, string]) => [string, string] | [[string, string], [string, string]])[] = [
         ([key, val]) => {
           if (val === "$null") {
             return [key, null];
@@ -140,7 +136,7 @@ csv()
         }
       ];
 
-      const filters = [
+      const filters: ((keyValuePair: [string, string]) => boolean)[] = [
         ([key, val]) => {
           if (["email", "state", "country", "headshot", "cornellid"].includes(key) || val === "") {
             return false;
