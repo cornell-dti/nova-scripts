@@ -6,14 +6,7 @@
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Usage:
-// 1) Copy the enrollment spreadsheet.
-// 2) Format it to match this spreadsheet: bit.ly/website-csv-format
-// 3) Export the spreadsheet as CSV (comma edition)
-// 4) Run `npm i`
-// 5) Run this script as `node parser.js [csv file path] > [json path]`
-// 6) Copy the [json path] to the `nova.cornelldti.org/src/data/strings/members-x.json`
-// 7) Update the member json path in `nova.cornelldti.org/src/data/strings/`
+// Usage: Check the README
 
 const fs = require("fs");
 const path = require("path");
@@ -21,19 +14,27 @@ const csv = require("csvtojson");
 
 const csvFilePath = process.argv[2];
 
-function fromEntries(iterable: readonly ([string, any] | [[string, unknown], [string, unknown]])[]) {
-  return [...iterable].reduce(
-    (obj, n) => {
-      const [key, val] = n;
+const undefinedIfEmpty = (string: string): string | undefined => string.trim().length === 0 ? undefined : string.trim();
 
-      if (typeof key !== 'string') {
-        return Object.assign(obj, fromEntries(n));
-      }
-
-      return Object.assign(obj, { [key]: val });
-    },
-    {}
-  );
+function getRoleObject(role: string): Readonly<{ roleId: string; roleDescription: string }> {
+  switch (role) {
+    case 'UX/UI Designer':
+      return { roleId: 'designer', roleDescription: 'Designer' };
+    case 'Developer':
+      return { roleId: 'developer', roleDescription: 'Developer' };
+    case 'Business Analyst':
+      return { roleId: 'business', roleDescription: 'Business Analyst' };
+    case 'Graphic Designer':
+      return { roleId: 'designer', roleDescription: 'Graphic Designer' };
+    case 'Lead':
+      return { roleId: 'lead', roleDescription: 'Lead' };
+    case 'Technical Project Manager':
+      return { roleId: 'pm', roleDescription: 'Technical PM' };
+    case 'Product Manager':
+      return { roleId: 'pm', roleDescription: 'Product Manager' };
+    default:
+      throw new Error(`Unsupported role: ${role}`);
+  }
 }
 
 function transformSubteams(input: string): string {
@@ -73,104 +74,26 @@ csv()
   .fromFile(csvFilePath)
   .then((jsonObj: readonly { readonly [key: string]: string }[]) => {
     const formatted = jsonObj.map(obj => {
-      const fns: ((keyValuePair: [string, string]) => [string, string] | [[string, string], [string, string]])[] = [
-        ([key, val]) => {
-          if (val === "$null") {
-            return [key, null];
-          }
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (key === "bio") {
-            return ["about", val];
-          }
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (typeof val === "string" && val.startsWith("['")) {
-            return [key, JSON.parse(val.replace(/'/g, '"'))];
-          }
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (key === "role") {
-            switch (val) {
-              case 'UX/UI Designer': return [['roleId', 'designer'], ['roleDescription', 'Designer']];
-              case 'Developer': return [['roleId', 'developer'], ['roleDescription', 'Developer']];
-              case 'Business Analyst': return [['roleId', 'business'], ['roleDescription', 'Business Analyst']];
-              case 'Graphic Designer': return [['roleId', 'designer'], ['roleDescription', 'Graphic Designer']];
-              case 'Lead': return [['roleId', 'lead'], ['roleDescription', 'Lead']];
-              case 'Technical Project Manager': return [['roleId', 'pm'], ['roleDescription', 'Technical PM']];
-              case 'Product Manager': return [['roleId', 'pm'], ['roleDescription', 'Product Manager']];
-            }
-          }
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (key === "When do you currently plan to graduate?")
-            return ["graduation", val];
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (key === 'hometown' && obj['state'] && obj['state'] !== 'International') {
-            return [key, `${val}, ${obj['state']}`];
-          }
+      const {
+        netid, firstName, lastName, name, ['When do you currently plan to graduate?']: graduation,
+        major, doubleMajor, minor, website, linkedin, github,
+        state, hometown, country, bio: about, subteam, otherSubteams, role
+      } = obj;
 
-          if (key === 'hometown' && obj['country'] && obj['state'] && obj['state'] === 'International') {
-            return [key, `${val}, ${obj['country']}`];
-          }
-
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (key === 'subteam' && val.trim() !== '') {
-            return [key, transformSubteams(val)];
-          }
-          return [key, val];
-        },
-        ([key, val]) => {
-          if (key === 'otherSubteams' && val.trim() !== '') {
-            return [key, val.split(',').map(transformSubteams)];
-          }
-          return [key, val];
-        }
-      ];
-
-      const filters: ((keyValuePair: [string, string]) => boolean)[] = [
-        ([key, val]) => {
-          if (["email", "state", "country", "headshot", "cornellid"].includes(key) || val === "") {
-            return false;
-          }
-          return true;
-        },
-        ([key, val]) => {
-          if (key === "isLead" && val === "") {
-            return false;
-          }
-          return true;
-        },
-        ([, val]) => {
-          if (Array.isArray(val) && val.length === 1 && val[0] === "") {
-            return false;
-          }
-          return true;
-        },
-        ([key, val]) => {
-          if (key === "otherSubteams" && val === "") {
-            return false;
-          }
-          return true;
-        }
-      ];
-
-      return filters.reduce(
-        (prev, next) => {
-          return fromEntries(Object.entries(prev).filter(next));
-        },
-        fns.reduce((prev, next) => {
-          return fromEntries(Object.entries(prev).map(next));
-        }, obj)
-      );
+      return {
+        netid, firstName, lastName, name, graduation,
+        major: undefinedIfEmpty(major),
+        doubleMajor: undefinedIfEmpty(doubleMajor),
+        minor: undefinedIfEmpty(minor),
+        website: undefinedIfEmpty(website),
+        linkedin: undefinedIfEmpty(linkedin),
+        github: undefinedIfEmpty(github),
+        hometown: state !== 'International' ? `${hometown}, ${state}` : `${hometown}, ${country}`,
+        about,
+        subteam: transformSubteams(subteam),
+        otherSubteams: undefinedIfEmpty(otherSubteams) && otherSubteams.split(',').map(transformSubteams),
+        ...getRoleObject(role)
+      };
     });
 
     fs.mkdirSync('temp', { recursive: true });
