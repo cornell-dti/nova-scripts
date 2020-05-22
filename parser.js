@@ -15,6 +15,8 @@
 // 6) Copy the [json path] to the `nova.cornelldti.org/src/data/strings/members-x.json`
 // 7) Update the member json path in `nova.cornelldti.org/src/data/strings/`
 
+const fs = require("fs");
+const path = require("path");
 const csv = require("csvtojson");
 
 const csvFilePath = process.argv[2];
@@ -32,6 +34,43 @@ function fromEntries(iterable) {
     },
     {}
   );
+}
+
+/**
+ * @param {string} input
+ * @returns {string}
+ */
+function transformSubteams(input) {
+  const lowercasedInput = input.toLowerCase();
+  if (lowercasedInput.includes('carriage')) {
+    return 'carriage';
+  } else if (lowercasedInput.includes('review')) {
+    return 'reviews';
+  } else if (lowercasedInput.includes('plan')) {
+    return 'courseplan';
+  } else if (lowercasedInput.includes('queue')) {
+    return 'queuemein';
+  } else if (lowercasedInput.includes('flux')) {
+    return 'flux';
+  } else if (lowercasedInput.includes('eve') || lowercasedInput.includes('cue')) {
+    return 'events';
+  } else if (lowercasedInput.includes('research')) {
+    return 'researchconnect';
+  } else if (lowercasedInput.includes('samwise')) {
+    return 'samwise';
+  } else if (lowercasedInput.includes('shout')) {
+    return 'shout';
+  } else if (lowercasedInput.includes('website')) {
+    return 'website';
+  } else if (lowercasedInput.includes('week')) {
+    return 'orientation';
+  } else if (lowercasedInput.includes('leads')) {
+    return 'Leads';
+  } else if (lowercasedInput.includes('business')) {
+    return 'business';
+  } else {
+    throw new Error(`Unsupported team: ${input}. Maybe it's a bug of the script or bad input.`);
+  }
 }
 
 csv()
@@ -60,13 +99,13 @@ csv()
         ([key, val]) => {
           if (key === "role") {
             switch (val) {
-              case 'UX/UI Designer': return [['role', 'designer'], ['roleDescription', 'Designer']];
-              case 'Developer': return [['role', 'developer'], ['roleDescription', 'Developer']];
-              case 'Business Analyst': return [['role', 'business'], ['roleDescription', 'Business Analyst']];
-              case 'Graphic Designer': return [['role', 'designer'], ['roleDescription', 'Graphic Designer']];
-              case 'Lead': return [['role', 'lead'], ['roleDescription', 'Lead']];
-              case 'Technical Project Manager': return [['role', 'pm'], ['roleDescription', 'Technical Project Manager']];
-              case 'Product Manager': return [['role', 'pm'], ['roleDescription', 'Product Manager']];
+              case 'UX/UI Designer': return [['roleId', 'designer'], ['roleDescription', 'Designer']];
+              case 'Developer': return [['roleId', 'developer'], ['roleDescription', 'Developer']];
+              case 'Business Analyst': return [['roleId', 'business'], ['roleDescription', 'Business Analyst']];
+              case 'Graphic Designer': return [['roleId', 'designer'], ['roleDescription', 'Graphic Designer']];
+              case 'Lead': return [['roleId', 'lead'], ['roleDescription', 'Lead']];
+              case 'Technical Project Manager': return [['roleId', 'pm'], ['roleDescription', 'Technical PM']];
+              case 'Product Manager': return [['roleId', 'pm'], ['roleDescription', 'Product Manager']];
             }
           }
           return [key, val];
@@ -85,6 +124,18 @@ csv()
             return [key, `${val}, ${obj['country']}`];
           }
 
+          return [key, val];
+        },
+        ([key, val]) => {
+          if (key === 'subteam' && val.trim() !== '') {
+            return [key, transformSubteams(val)];
+          }
+          return [key, val];
+        },
+        ([key, val]) => {
+          if (key === 'otherSubteams' && val.trim() !== '') {
+            return [key, val.split(',').map(transformSubteams)];
+          }
           return [key, val];
         }
       ];
@@ -126,5 +177,11 @@ csv()
       );
     });
 
-    console.log(JSON.stringify(formatted));
+    fs.mkdirSync('temp', { recursive: true });
+    formatted.forEach(memberJson => {
+      fs.writeFileSync(
+        path.join('temp', `${memberJson.netid}.json`),
+        JSON.stringify(memberJson, undefined, 4) + '\n'
+      );
+    });
   });
